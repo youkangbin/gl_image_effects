@@ -1,7 +1,4 @@
-// filter.frag
-// #version 由 C++ 动态注入，此处不写
 
-// ── 滤镜位掩码常量（与 C++ enum FilterFlag 保持一致）────────────
 const int FILTER_GRAYSCALE = 1;    // 1 << 0
 const int FILTER_INVERT    = 2;    // 1 << 1
 const int FILTER_BLUR      = 4;    // 1 << 2
@@ -10,6 +7,8 @@ const int FILTER_EDGE      = 16;   // 1 << 4
 const int FILTER_WARM      = 32;   // 1 << 5
 const int FILTER_COOL      = 64;   // 1 << 6
 const int FILTER_SEPIA     = 128;  // 1 << 7
+const int FILTER_LUT       = 256;  // 1 << 8
+const int FILTER_MASK      = 512;  // 1 << 9
 
 uniform sampler2D u_texture;
 uniform int       u_filterMode;
@@ -17,13 +16,10 @@ uniform int       u_filterMode;
 in  vec2 v_texCoord;
 out vec4 fragColor;
 
-// ── 工具：判断某个滤镜位是否激活 ─────────────────────────────────
 bool hasFilter(int flag) {
-    // GLSL ES 3.2 支持按位与
     return (u_filterMode & flag) != 0;
 }
 
-// ── 采样周围像素（用于卷积类滤镜）────────────────────────────────
 vec4 sampleOffset(vec2 uv, vec2 offset) {
     return texture(u_texture, uv + offset);
 }

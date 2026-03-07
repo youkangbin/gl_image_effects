@@ -81,17 +81,26 @@ void OpenGLRenderer::synchronize(QQuickFramebufferObject *item)
         m_imgDirty = true;
     }
 
+
     // 把 QML 字符串列表转成位掩码
     const QStringList &filters = glItem->m_activeFilters;
     int mask = FILTER_NONE;
-    if (filters.contains("grayscale")) mask |= FILTER_GRAYSCALE;
-    if (filters.contains("invert"))    mask |= FILTER_INVERT;
-    if (filters.contains("blur"))      mask |= FILTER_BLUR;
-    if (filters.contains("sharpen"))   mask |= FILTER_SHARPEN;
-    if (filters.contains("edge"))      mask |= FILTER_EDGE;
-    if (filters.contains("warm"))      mask |= FILTER_WARM;
-    if (filters.contains("cool"))      mask |= FILTER_COOL;
-    if (filters.contains("sepia"))     mask |= FILTER_SEPIA;
+    if (filters.contains("grayscale"))
+        mask |= FILTER_GRAYSCALE;
+    if (filters.contains("invert"))
+        mask |= FILTER_INVERT;
+    if (filters.contains("blur"))
+        mask |= FILTER_BLUR;
+    if (filters.contains("sharpen"))
+        mask |= FILTER_SHARPEN;
+    if (filters.contains("edge"))
+        mask |= FILTER_EDGE;
+    if (filters.contains("warm"))
+        mask |= FILTER_WARM;
+    if (filters.contains("cool"))
+        mask |= FILTER_COOL;
+    if (filters.contains("sepia"))
+        mask |= FILTER_SEPIA;
     m_filterMask = mask;
 }
 
@@ -117,12 +126,21 @@ QByteArray OpenGLRenderer::buildShaderSource(const QString &qrcPath)
 // ── 加载纹理 ───────────────────────────────────────────────────
 void OpenGLRenderer::loadTexture(const QString &path)
 {
+    QString convertedPath;
+    QUrl urlPath(path);
+    if (urlPath.isValid()) {
+        convertedPath = urlPath.toLocalFile();
+    } else {
+        convertedPath = path;
+    }
+
+
     delete m_texture;
     m_texture = nullptr;
 
-    QImage img(path);
+    QImage img(convertedPath);
     if (img.isNull()) {
-        qWarning() << "Failed to load image:" << path;
+        qWarning() << "Failed to load image:" << convertedPath;
         // 生成一个 2×2 的棋盘格作为 fallback
         img = QImage(2, 2, QImage::Format_RGBA8888);
         img.setPixel(0, 0, qRgba(255,   0, 255, 255));

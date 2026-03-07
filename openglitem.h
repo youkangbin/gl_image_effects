@@ -80,6 +80,8 @@ private:
         FILTER_WARM      = 1 << 5,
         FILTER_COOL      = 1 << 6,
         FILTER_SEPIA     = 1 << 7,
+        FILTER_LUT       = 1 << 8,
+        FILTER_MASK      = 1 << 9
     };
 
     int     m_filterMask     = FILTER_NONE;

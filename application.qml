@@ -27,8 +27,7 @@ ApplicationWindow {
         title: qsTr("选择图片")
         nameFilters: ["图片文件 (*.png *.jpg *.jpeg *.bmp)"]
         onAccepted: {
-            // TODO: 将 fileDialog.currentFile 传给 OpenGLItem 加载纹理
-            console.log("选中文件：", fileDialog.currentFile)
+            form.glView.imagePath = fileDialog.currentFile
         }
     }
 }

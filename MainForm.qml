@@ -5,12 +5,14 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Theme
 import MyComponents 1.0
+import QtQuick.Controls 2.5
 
 Item {
     id: form
     anchors.fill: parent
 
     property alias button: loadButton
+    property alias glView: glView
 
     // ── 滤镜 key 映射（与 C++ FilterFlag 和 filter.frag 中常量一致）──
     readonly property var filterKeys: [
@@ -22,20 +24,22 @@ Item {
         var result = []
         for (var i = 0; i < filterModel.count; i++)
             if (filterModel.get(i).enabled)
-                result.push(filterKeys[i])
+                result.push(filterModel.get(i).key)
         return result
     }
 
     ListModel {
         id: filterModel
-        ListElement { name: "灰度\nGrayscale";  enabled: false }
-        ListElement { name: "反色\nInvert";     enabled: false }
-        ListElement { name: "模糊\nBlur";       enabled: false }
-        ListElement { name: "锐化\nSharpen";    enabled: false }
-        ListElement { name: "边缘\nEdge";       enabled: false }
-        ListElement { name: "暖色\nWarm";       enabled: false }
-        ListElement { name: "冷色\nCool";       enabled: false }
-        ListElement { name: "复古\nSepia";      enabled: false }
+        ListElement { name: "模糊\nBlur";    key:"blur";      enabled: false }
+        ListElement { name: "锐化\nSharpen";  key:"sharpen";     enabled: false }
+        ListElement { name: "LUT";           key:"lut";     enabled: false }
+        ListElement { name: "MASK";           key:"mask";      enabled: false }
+        ListElement { name: "灰度\nGrayscale"; key:"grayscale";    enabled: false }
+        ListElement { name: "反色\nInvert";    key:"invert";   enabled: false }
+        ListElement { name: "边缘\nEdge";      key:"edge";   enabled: false }
+        ListElement { name: "暖色\nWarm";       key:"warm";  enabled: false }
+        ListElement { name: "冷色\nCool";       key:"cool";  enabled: false }
+        ListElement { name: "复古\nSepia";       key:"sepia"; enabled: false }
     }
 
     ColumnLayout {
@@ -67,6 +71,9 @@ Item {
             }
         }
 
+        //for trigger file dialog
+        Button { id: loadButton; visible: false; text: "" }
+
         // ── ② 操作按钮行（紧凑，固定高度）──────────────────
         RowLayout {
             Layout.fillWidth: true
@@ -78,8 +85,8 @@ Item {
                     { id_ref: "loadImageButton",  label: qsTr("载入图片") },
                     { id_ref: "loadLUT",          label: qsTr("载入LUT")  },
                     { id_ref: "loadMASK",         label: qsTr("载入MASK") },
-                    { id_ref: "applyButton",      label: qsTr("应用滤镜") },
                     { id_ref: "exportButton",     label: qsTr("导出图片") },
+                    { id_ref: "clear",            label: qsTr("清除") },
                 ]
 
                 Button {
@@ -105,47 +112,69 @@ Item {
                         if (objectName === "applyButton") {
                             glView.activeFilters = form.buildActiveFilters()
                         }
+
+                        if (objectName === "clear") {
+                            for (var i = 0; i < filterModel.count; i++)
+                                filterModel.setProperty(i, "enabled", false)
+                            // ← 清除时同步重置 OpenGLItem
+                            glView.activeFilters = []
+                        }
                     }
                 }
             }
         }
 
-        // alias 绑定用的隐藏按钮（供 flatstyle.qml 的 button.onClicked 使用）
-        Button { id: loadButton; visible: false; text: "" }
+        RowLayout {
+            Layout.fillWidth: true
+            Text {
+                id: name
+                text: slider.intensityParamName + qsTr("锐化强度")
+            }
+
+            Slider {
+                id: slider
+                Layout.fillWidth: true
+                property string intensityParamName: ""
+                height: 10
+                // 核心属性
+                from: 0
+                to: 100
+                value: 0
+                stepSize: 1
+                onValueChanged: {
+                    console.log("当前值（实时）：", value);
+                    valueText.text = "当前值：" + Math.round(value); // 取整显示
+                }
+            }
+        }
+
+        RowLayout {
+            Text {
+                id: blurName
+                text: slider.intensityParamName + qsTr("模糊强度")
+            }
+
+            Slider {
+                id: blurSlider
+                Layout.fillWidth: true
+                property string intensityParamName: ""
+                height: 10
+                // 核心属性
+                from: 0
+                to: 100
+                value: 0
+                stepSize: 1
+                onValueChanged: {
+                    console.log("当前值（实时）：", value);
+                    valueText.text = "当前值：" + Math.round(value); // 取整显示
+                }
+            }
+        }
 
         // ── ③ 滤镜区域（标题 + 横向列表）────────────────────
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 3
-
-            // 标题行
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 20
-
-                Text {
-                    text: qsTr("滤镜（可多选）")
-                    font.pixelSize: 11
-                    font.bold: true
-                    color: Theme.mainColor
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                Item { Layout.fillWidth: true }
-
-                Button {
-                    text: qsTr("清除")
-                    font.pixelSize: 10
-                    Layout.preferredHeight: 20
-                    Layout.preferredWidth: 44
-                    onClicked: {
-                        for (var i = 0; i < filterModel.count; i++)
-                            filterModel.setProperty(i, "enabled", false)
-                        // ← 清除时同步重置 OpenGLItem
-                        glView.activeFilters = []
-                    }
-                }
-            }
 
             // 横向滤镜列表
             Rectangle {
@@ -219,8 +248,8 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 filterModel.setProperty(index, "enabled", !model.enabled)
-                                // ← 勾选/取消时不立即生效，等用户点"应用滤镜"
-                                // 如需实时预览，改为：glView.activeFilters = form.buildActiveFilters()
+                                slider.intensityParamName = filterModel.get(index).name
+                                glView.activeFilters = form.buildActiveFilters()
                             }
                         }
                     }
