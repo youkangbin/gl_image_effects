@@ -35,7 +35,7 @@ Item {
         // ── ① OpenGL 渲染区域 ──────────────────────────
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: form.height * 0.55
+            // Layout.preferredHeight: form.height * 0.75
             color: "#111111"
             radius: 6
             clip: true
@@ -112,17 +112,12 @@ Item {
             Item { Layout.fillWidth: true }   // spacer
 
             // 一键清除所有选中
-            Text {
+            Button  {
                 text: qsTr("清除全选")
                 font.pixelSize: 12
-                color: "#888888"
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        for (var i = 0; i < filterModel.count; i++)
-                            filterModel.setProperty(i, "enabled", false)
-                    }
+                onClicked: {
+                    for (var i = 0; i < filterModel.count; i++)
+                        filterModel.setProperty(i, "enabled", false)
                 }
             }
         }
@@ -142,28 +137,30 @@ Item {
                 anchors.fill: parent
                 anchors.margins: 4
                 model: filterModel
+                orientation: ListView.Horizontal
+                snapMode: ListView.SnapToItem
                 spacing: 2
 
                 delegate: Rectangle {
-                    width: filterList.width
-                    height: 40
-                    radius: 4
-                    color: model.enabled ? Qt.rgba(
-                               Theme.mainColor.r,
-                               Theme.mainColor.g,
-                               Theme.mainColor.b, 0.25)
-                                         : (itemMouse.containsMouse ? "#2a2a3e" : "transparent")
+                    // ========== 核心：设置方形尺寸 ==========
+                    width: 80   // 方块宽度（可根据需求调整）
+                    height: 80  // 方块高度，与宽度一致形成正方形
+                    radius: 8   // 圆角增大，更像方块按钮
+                    color: model.enabled
+                           ? Qt.rgba(Theme.mainColor.r, Theme.mainColor.g, Theme.mainColor.b, 0.3)  // 选中态
+                           : (itemMouse.containsMouse ? "#3a3a5e" : "#2a2a3e")  // hover/默认态
 
                     Behavior on color { ColorAnimation { duration: 120 } }
 
-                    RowLayout {
+                    // ========== 内部布局：垂直居中排列复选框+文字 ==========
+                    ColumnLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 10
-                        spacing: 10
+                        anchors.margins: 6  // 内边距，避免内容贴边
+                        spacing: 6          // 复选框和文字的间距
 
-                        // 复选框
+                        // 复选框（居中显示）
                         Rectangle {
+                            Layout.alignment: Qt.AlignHCenter  // 水平居中
                             width: 18; height: 18
                             radius: 3
                             color: model.enabled ? Theme.mainColor : "transparent"
@@ -180,15 +177,21 @@ Item {
                             }
                         }
 
-                        // 滤镜名称
+                        // 滤镜名称（居中显示，自动换行）
                         Text {
+                            Layout.alignment: Qt.AlignHCenter  // 水平居中
+                            Layout.fillWidth: true             // 占满宽度，方便换行
                             text: model.name
                             color: model.enabled ? "white" : "#aaaacc"
-                            font.pixelSize: 13
-                            Layout.fillWidth: true
+                            font.pixelSize: 12                 // 缩小字体适配方块
+                            horizontalAlignment: Text.AlignHCenter  // 文字居中
+                            verticalAlignment: Text.AlignTop
+                            wrapMode: Text.WrapAtWordBoundaryOrAnywhere  // 文字过长时换行
+                            maximumLineCount: 2  // 最多显示2行，避免超出方块
                         }
                     }
 
+                    // 交互区域（铺满整个方块）
                     MouseArea {
                         id: itemMouse
                         anchors.fill: parent
