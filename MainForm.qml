@@ -1,5 +1,3 @@
-// Copyright (C) 2017 The Qt Company Ltd.
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -14,12 +12,10 @@ Item {
     property alias button: loadButton
     property alias glView: glView
 
-    // ── 滤镜 key 映射（与 C++ FilterFlag 和 filter.frag 中常量一致）──
     readonly property var filterKeys: [
-        "grayscale", "invert", "blur", "sharpen", "edge", "warm", "cool", "sepia"
+        "grayscale", "invert", "blur", "sharpen", "edge", "warm", "cool", "sepia", "pixel"
     ]
 
-    // 收集当前激活的 key 列表，推送给 OpenGLItem
     function buildActiveFilters() {
         var result = []
         for (var i = 0; i < filterModel.count; i++)
@@ -28,18 +24,26 @@ Item {
         return result
     }
 
+    function isFilterEnabled(key) {
+        for (var i = 0; i < filterModel.count; i++)
+            if (filterModel.get(i).key === key && filterModel.get(i).enabled)
+                return true
+        return false
+    }
+
     ListModel {
         id: filterModel
         ListElement { name: "模糊\nBlur";    key:"blur";      enabled: false }
-        ListElement { name: "锐化\nSharpen";  key:"sharpen";     enabled: false }
-        ListElement { name: "LUT";           key:"lut";     enabled: false }
-        ListElement { name: "MASK";           key:"mask";      enabled: false }
-        ListElement { name: "灰度\nGrayscale"; key:"grayscale";    enabled: false }
-        ListElement { name: "反色\nInvert";    key:"invert";   enabled: false }
-        ListElement { name: "边缘\nEdge";      key:"edge";   enabled: false }
-        ListElement { name: "暖色\nWarm";       key:"warm";  enabled: false }
-        ListElement { name: "冷色\nCool";       key:"cool";  enabled: false }
-        ListElement { name: "复古\nSepia";       key:"sepia"; enabled: false }
+        ListElement { name: "锐化\nSharpen";  key:"sharpen";   enabled: false }
+        ListElement { name: "LUT";           key:"lut";       enabled: false }
+        ListElement { name: "MASK";          key:"mask";      enabled: false }
+        ListElement { name: "灰度\nGrayscale"; key:"grayscale"; enabled: false }
+        ListElement { name: "反色\nInvert";    key:"invert";    enabled: false }
+        ListElement { name: "边缘\nEdge";      key:"edge";      enabled: false }
+        ListElement { name: "暖色\nWarm";      key:"warm";      enabled: false }
+        ListElement { name: "冷色\nCool";      key:"cool";      enabled: false }
+        ListElement { name: "复古\nSepia";     key:"sepia";     enabled: false }
+        ListElement { name: "像素\nPixel";     key:"pixel";     enabled: false }
     }
 
     ColumnLayout {
@@ -47,7 +51,6 @@ Item {
         anchors.margins: 8
         spacing: 6
 
-        // ── ① OpenGL 渲染区域（主体，占满剩余空间）──────────
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -58,7 +61,7 @@ Item {
             OpenGLItem {
                 id: glView
                 anchors.fill: parent
-                imagePath: ":/images/lenna.png"   // ← 默认图片
+                imagePath: ":/images/lenna.png"
             }
 
             Text {
@@ -71,10 +74,8 @@ Item {
             }
         }
 
-        //for trigger file dialog
         Button { id: loadButton; visible: false; text: "" }
 
-        // ── ② 操作按钮行（紧凑，固定高度）──────────────────
         RowLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: 28
@@ -108,15 +109,12 @@ Item {
                         if (objectName === "loadImageButton") {
                             loadButton.clicked()
                         }
-                        // applyButton：点击后才真正推送滤镜到 OpenGLItem
                         if (objectName === "applyButton") {
                             glView.activeFilters = form.buildActiveFilters()
                         }
-
                         if (objectName === "clear") {
                             for (var i = 0; i < filterModel.count; i++)
                                 filterModel.setProperty(i, "enabled", false)
-                            // ← 清除时同步重置 OpenGLItem
                             glView.activeFilters = []
                         }
                     }
@@ -126,57 +124,90 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
+            visible: form.isFilterEnabled("sharpen")
+
             Text {
-                id: name
-                text: slider.intensityParamName + qsTr("锐化强度")
+                text: qsTr("锐化强度")
             }
 
             Slider {
                 id: slider
                 Layout.fillWidth: true
-                property string intensityParamName: ""
                 height: 10
-                // 核心属性
                 from: 0
                 to: 100
                 value: 0
                 stepSize: 1
                 onValueChanged: {
-                    console.log("当前值（实时）：", value);
-                    valueText.text = "当前值：" + Math.round(value); // 取整显示
+                    glView.sharpenIntensity = value / 100.0
                 }
+            }
+
+            Text {
+                id: valueText
+                text: Math.round(slider.value)
+                width: 30
             }
         }
 
         RowLayout {
+            Layout.fillWidth: true
+            visible: form.isFilterEnabled("blur")
+
             Text {
-                id: blurName
-                text: slider.intensityParamName + qsTr("模糊强度")
+                text: qsTr("模糊强度")
             }
 
             Slider {
                 id: blurSlider
                 Layout.fillWidth: true
-                property string intensityParamName: ""
                 height: 10
-                // 核心属性
                 from: 0
                 to: 100
                 value: 0
                 stepSize: 1
                 onValueChanged: {
-                    console.log("当前值（实时）：", value);
-                    valueText.text = "当前值：" + Math.round(value); // 取整显示
+                    glView.blurIntensity = value / 100.0
                 }
+            }
+
+            Text {
+                text: Math.round(blurSlider.value)
+                width: 30
             }
         }
 
-        // ── ③ 滤镜区域（标题 + 横向列表）────────────────────
+        RowLayout {
+            Layout.fillWidth: true
+            visible: form.isFilterEnabled("pixel")
+
+            Text {
+                text: qsTr("像素强度")
+            }
+
+            Slider {
+                id: pixelSlider
+                Layout.fillWidth: true
+                height: 10
+                from: 1
+                to: 100
+                value: 1
+                stepSize: 1
+                onValueChanged: {
+                    glView.pixelIntensity = value / 100.0
+                }
+            }
+
+            Text {
+                text: Math.round(pixelSlider.value)
+                width: 30
+            }
+        }
+
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 3
 
-            // 横向滤镜列表
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 68
@@ -248,7 +279,6 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 filterModel.setProperty(index, "enabled", !model.enabled)
-                                slider.intensityParamName = filterModel.get(index).name
                                 glView.activeFilters = form.buildActiveFilters()
                             }
                         }
