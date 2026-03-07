@@ -1,13 +1,31 @@
 #include "openglitem.h"
 #include <QOpenGLFramebufferObjectFormat>
+#include <QOpenGLContext>
+#include <QFile>
+#include <QImage>
 
-// ─────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+// 全屏四边形顶点（两个三角形覆盖整个 NDC [-1,1]）
+// 格式：x  y   u  v
+// ════════════════════════════════════════════════════════════════
+static const GLfloat quadVertices[] = {
+    // 三角形 1
+    -1.0f,  1.0f,   0.0f, 1.0f,
+    -1.0f, -1.0f,   0.0f, 0.0f,
+     1.0f, -1.0f,   1.0f, 0.0f,
+    // 三角形 2
+    -1.0f,  1.0f,   0.0f, 1.0f,
+     1.0f, -1.0f,   1.0f, 0.0f,
+     1.0f,  1.0f,   1.0f, 1.0f,
+};
+
+// ════════════════════════════════════════════════════════════════
 // OpenGLItem
-// ─────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
 OpenGLItem::OpenGLItem(QQuickItem *parent)
     : QQuickFramebufferObject(parent)
 {
-    setMirrorVertically(true); // 修正 FBO → QML 的 Y 轴翻转
+    setMirrorVertically(true);
 }
 
 QQuickFramebufferObject::Renderer *OpenGLItem::createRenderer() const
@@ -15,9 +33,25 @@ QQuickFramebufferObject::Renderer *OpenGLItem::createRenderer() const
     return new OpenGLRenderer();
 }
 
-// ─────────────────────────────────────────────
+void OpenGLItem::setActiveFilters(const QStringList &filters)
+{
+    if (m_activeFilters == filters) return;
+    m_activeFilters = filters;
+    emit activeFiltersChanged();
+    update();   // 通知场景图重新渲染
+}
+
+void OpenGLItem::setImagePath(const QString &path)
+{
+    if (m_imagePath == path) return;
+    m_imagePath = path;
+    emit imagePathChanged();
+    update();
+}
+
+// ════════════════════════════════════════════════════════════════
 // OpenGLRenderer
-// ─────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
 OpenGLRenderer::OpenGLRenderer() {}
 
 OpenGLRenderer::~OpenGLRenderer()
@@ -25,6 +59,7 @@ OpenGLRenderer::~OpenGLRenderer()
     delete m_program;
     delete m_vao;
     delete m_vbo;
+    delete m_texture;
 }
 
 QOpenGLFramebufferObject *OpenGLRenderer::createFramebufferObject(const QSize &size)
@@ -35,72 +70,104 @@ QOpenGLFramebufferObject *OpenGLRenderer::createFramebufferObject(const QSize &s
     return new QOpenGLFramebufferObject(size, fmt);
 }
 
-// ─── 完整的立方体：6面 × 2三角形 × 3顶点 = 36顶点 ───────────────
-// 每个顶点：x y z  u v
-static const GLfloat cubeVertices[] = {
-    // 前面 (z = +0.5)
-    -0.5f,  0.5f,  0.5f,   0.0f, 1.0f,
-    -0.5f, -0.5f,  0.5f,   0.0f, 0.0f,
-    0.5f, -0.5f,  0.5f,   1.0f, 0.0f,
-    -0.5f,  0.5f,  0.5f,   0.0f, 1.0f,
-    0.5f, -0.5f,  0.5f,   1.0f, 0.0f,
-    0.5f,  0.5f,  0.5f,   1.0f, 1.0f,
-    // 后面 (z = -0.5)
-    0.5f,  0.5f, -0.5f,   0.0f, 1.0f,
-    0.5f, -0.5f, -0.5f,   0.0f, 0.0f,
-    -0.5f, -0.5f, -0.5f,   1.0f, 0.0f,
-    0.5f,  0.5f, -0.5f,   0.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f,   1.0f, 0.0f,
-    -0.5f,  0.5f, -0.5f,   1.0f, 1.0f,
-    // 左面 (x = -0.5)
-    -0.5f,  0.5f, -0.5f,   0.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f,   0.0f, 0.0f,
-    -0.5f, -0.5f,  0.5f,   1.0f, 0.0f,
-    -0.5f,  0.5f, -0.5f,   0.0f, 1.0f,
-    -0.5f, -0.5f,  0.5f,   1.0f, 0.0f,
-    -0.5f,  0.5f,  0.5f,   1.0f, 1.0f,
-    // 右面 (x = +0.5)
-    0.5f,  0.5f,  0.5f,   0.0f, 1.0f,
-    0.5f, -0.5f,  0.5f,   0.0f, 0.0f,
-    0.5f, -0.5f, -0.5f,   1.0f, 0.0f,
-    0.5f,  0.5f,  0.5f,   0.0f, 1.0f,
-    0.5f, -0.5f, -0.5f,   1.0f, 0.0f,
-    0.5f,  0.5f, -0.5f,   1.0f, 1.0f,
-    // 顶面 (y = +0.5)
-    -0.5f,  0.5f, -0.5f,   0.0f, 1.0f,
-    -0.5f,  0.5f,  0.5f,   0.0f, 0.0f,
-    0.5f,  0.5f,  0.5f,   1.0f, 0.0f,
-    -0.5f,  0.5f, -0.5f,   0.0f, 1.0f,
-    0.5f,  0.5f,  0.5f,   1.0f, 0.0f,
-    0.5f,  0.5f, -0.5f,   1.0f, 1.0f,
-    // 底面 (y = -0.5)
-    -0.5f, -0.5f,  0.5f,   0.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f,   0.0f, 0.0f,
-    0.5f, -0.5f, -0.5f,   1.0f, 0.0f,
-    -0.5f, -0.5f,  0.5f,   0.0f, 1.0f,
-    0.5f, -0.5f, -0.5f,   1.0f, 0.0f,
-    0.5f, -0.5f,  0.5f,   1.0f, 1.0f,
-};
+// ── synchronize：在渲染线程上从 Item 同步数据 ──────────────────
+void OpenGLRenderer::synchronize(QQuickFramebufferObject *item)
+{
+    auto *glItem = static_cast<OpenGLItem *>(item);
 
+    // 同步图片路径
+    if (glItem->m_imagePath != m_pendingImgPath) {
+        m_pendingImgPath = glItem->m_imagePath;
+        m_imgDirty = true;
+    }
+
+    // 把 QML 字符串列表转成位掩码
+    const QStringList &filters = glItem->m_activeFilters;
+    int mask = FILTER_NONE;
+    if (filters.contains("grayscale")) mask |= FILTER_GRAYSCALE;
+    if (filters.contains("invert"))    mask |= FILTER_INVERT;
+    if (filters.contains("blur"))      mask |= FILTER_BLUR;
+    if (filters.contains("sharpen"))   mask |= FILTER_SHARPEN;
+    if (filters.contains("edge"))      mask |= FILTER_EDGE;
+    if (filters.contains("warm"))      mask |= FILTER_WARM;
+    if (filters.contains("cool"))      mask |= FILTER_COOL;
+    if (filters.contains("sepia"))     mask |= FILTER_SEPIA;
+    m_filterMask = mask;
+}
+
+QByteArray OpenGLRenderer::buildShaderSource(const QString &qrcPath)
+{
+    // 根据当前上下文判断是否是 ES
+    const bool isES = QOpenGLContext::currentContext()->isOpenGLES();
+    QByteArray header;
+    if (isES) {
+        header = "#version 320 es\nprecision highp float;\nprecision highp sampler2D;\n";
+    } else {
+        header = "#version 330 core\n";
+    }
+
+    QFile f(qrcPath);
+    if (!f.open(QFile::ReadOnly)) {
+        qWarning() << "Cannot open shader file:" << qrcPath;
+        return {};
+    }
+    return header + f.readAll();
+}
+
+// ── 加载纹理 ───────────────────────────────────────────────────
+void OpenGLRenderer::loadTexture(const QString &path)
+{
+    delete m_texture;
+    m_texture = nullptr;
+
+    QImage img(path);
+    if (img.isNull()) {
+        qWarning() << "Failed to load image:" << path;
+        // 生成一个 2×2 的棋盘格作为 fallback
+        img = QImage(2, 2, QImage::Format_RGBA8888);
+        img.setPixel(0, 0, qRgba(255,   0, 255, 255));
+        img.setPixel(1, 0, qRgba( 64,  64,  64, 255));
+        img.setPixel(0, 1, qRgba( 64,  64,  64, 255));
+        img.setPixel(1, 1, qRgba(255,   0, 255, 255));
+    }
+
+    // 转为 RGBA8888 并上下翻转（OpenGL 纹理原点在左下）
+    img = img.convertToFormat(QImage::Format_RGBA8888).mirrored();
+
+    m_texture = new QOpenGLTexture(QOpenGLTexture::Target2D);
+    m_texture->setMinificationFilter(QOpenGLTexture::LinearMipMapLinear);
+    m_texture->setMagnificationFilter(QOpenGLTexture::Linear);
+    m_texture->setWrapMode(QOpenGLTexture::ClampToEdge);
+    m_texture->setData(img);   // 自动生成 mipmap
+}
+
+// ── 初始化 GL 资源 ────────────────────────────────────────────
 void OpenGLRenderer::initialize()
 {
-    // 必须在 Renderer 线程上调用，此处 GL context 已激活
     initializeOpenGLFunctions();
 
-    // ── 着色器 ──────────────────────────────────────
+    // ── 着色器 ──
     m_program = new QOpenGLShaderProgram();
 
-    m_program->addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/shader/filter.vert");
-    m_program->addShaderFromSourceCode(QOpenGLShader::Fragment, ":/shader/filter.frag");
-    m_program->bindAttributeLocation("vertex", 0);
-    m_program->bindAttributeLocation("coord",  1);
+    QByteArray vertSrc = buildShaderSource(":/shader/filter.vert");
+    QByteArray fragSrc = buildShaderSource(":/shader/filter.frag");
+
+    if (!m_program->addShaderFromSourceCode(QOpenGLShader::Vertex,   vertSrc) ||
+        !m_program->addShaderFromSourceCode(QOpenGLShader::Fragment, fragSrc)) {
+        qWarning() << "Shader compile error:" << m_program->log();
+        return;
+    }
+    m_program->bindAttributeLocation("a_position", 0);
+    m_program->bindAttributeLocation("a_texCoord", 1);
     if (!m_program->link()) {
         qWarning() << "Shader link error:" << m_program->log();
         return;
     }
-    m_matrixLoc = m_program->uniformLocation("matrix");
 
-    // ── VAO / VBO ───────────────────────────────────
+    m_textureLoc    = m_program->uniformLocation("u_texture");
+    m_filterModeLoc = m_program->uniformLocation("u_filterMode");
+
+    // ── 全屏四边形 VAO/VBO ──
     m_vao = new QOpenGLVertexArrayObject();
     m_vao->create();
     QOpenGLVertexArrayObject::Binder vaoBinder(m_vao);
@@ -108,55 +175,55 @@ void OpenGLRenderer::initialize()
     m_vbo = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
     m_vbo->create();
     m_vbo->bind();
-    m_vbo->allocate(cubeVertices, sizeof(cubeVertices));
+    m_vbo->allocate(quadVertices, sizeof(quadVertices));
 
-    // 在 VAO 内记录属性指针
     m_program->bind();
+    // a_position: vec2 @ offset 0,  stride 4*float
     m_program->enableAttributeArray(0);
+    m_program->setAttributeBuffer(0, GL_FLOAT, 0,                  2, 4 * sizeof(GLfloat));
+    // a_texCoord: vec2 @ offset 2*float
     m_program->enableAttributeArray(1);
-    m_program->setAttributeBuffer(0, GL_FLOAT, 0,                  3, 5 * sizeof(GLfloat));
-    m_program->setAttributeBuffer(1, GL_FLOAT, 3 * sizeof(GLfloat),2, 5 * sizeof(GLfloat));
+    m_program->setAttributeBuffer(1, GL_FLOAT, 2 * sizeof(GLfloat),2, 4 * sizeof(GLfloat));
     m_program->release();
-
     m_vbo->release();
-    // vaoBinder 析构时自动解绑 VAO
 
     m_initialized = true;
 }
 
+// ── 主渲染函数 ────────────────────────────────────────────────
 void OpenGLRenderer::render()
 {
     if (!m_initialized)
         initialize();
 
-    // ── 投影矩阵（尺寸变化时重建） ─────────────────
-    const QSize sz = framebufferObject()->size();
-    m_proj.setToIdentity();
-    m_proj.perspective(45.0f,
-                       sz.width() / float(sz.height()),
-                       0.01f, 100.0f);
+    // 按需加载 / 更新纹理
+    if (m_imgDirty) {
+        loadTexture(m_pendingImgPath);
+        m_loadedImgPath = m_pendingImgPath;
+        m_imgDirty = false;
+    }
 
-    // ── 渲染状态 ────────────────────────────────────
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
-    glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
+    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
 
-    // ── 绘制 ─────────────────────────────────────────
+    if (!m_texture) return;
+
     m_program->bind();
     {
         QOpenGLVertexArrayObject::Binder vaoBinder(m_vao);
 
-        QMatrix4x4 model;
-        model.translate(0.0f, 0.0f, -2.0f);
-        model.rotate(m_angle,       0.5f, 1.0f, 0.0f);  // 绕斜轴旋转
-        m_angle += 0.8f;                                  // 每帧角度增量
+        // 绑定纹理到 unit 0
+        m_texture->bind(0);
+        m_program->setUniformValue(m_textureLoc,    0);
+        m_program->setUniformValue(m_filterModeLoc, m_filterMask);
 
-        m_program->setUniformValue(m_matrixLoc, m_proj * model);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        m_texture->release();
     }
     m_program->release();
 
-    // 告知 Qt 场景图本帧结束后继续请求下一帧 → 持续动画
-    update();
+    // 图片处理不需要持续动画，无需 update()
+    // 如需实时预览动态效果可在此调用 update()
 }

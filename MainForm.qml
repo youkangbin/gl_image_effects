@@ -12,6 +12,20 @@ Item {
 
     property alias button: loadButton
 
+    // ── 滤镜 key 映射（与 C++ FilterFlag 和 filter.frag 中常量一致）──
+    readonly property var filterKeys: [
+        "grayscale", "invert", "blur", "sharpen", "edge", "warm", "cool", "sepia"
+    ]
+
+    // 收集当前激活的 key 列表，推送给 OpenGLItem
+    function buildActiveFilters() {
+        var result = []
+        for (var i = 0; i < filterModel.count; i++)
+            if (filterModel.get(i).enabled)
+                result.push(filterKeys[i])
+        return result
+    }
+
     ListModel {
         id: filterModel
         ListElement { name: "灰度\nGrayscale";  enabled: false }
@@ -32,7 +46,7 @@ Item {
         // ── ① OpenGL 渲染区域（主体，占满剩余空间）──────────
         Rectangle {
             Layout.fillWidth: true
-            Layout.fillHeight: true   // ← 关键：撑满所有剩余高度
+            Layout.fillHeight: true
             color: "#111111"
             radius: 6
             clip: true
@@ -40,6 +54,7 @@ Item {
             OpenGLItem {
                 id: glView
                 anchors.fill: parent
+                imagePath: ":/images/lenna.png"   // ← 默认图片
             }
 
             Text {
@@ -55,19 +70,18 @@ Item {
         // ── ② 操作按钮行（紧凑，固定高度）──────────────────
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: 28   // 固定按钮行高度，保持紧凑
+            Layout.preferredHeight: 28
             spacing: 5
 
             Repeater {
                 model: [
                     { id_ref: "loadImageButton",  label: qsTr("载入图片") },
-                    { id_ref: "loadLUT",     label: qsTr("载入LUT")  },
-                    { id_ref: "loadMASK",    label: qsTr("载入MASK") },
-                    { id_ref: "applyButton", label: qsTr("应用滤镜") },
-                    { id_ref: "exportButton",label: qsTr("导出图片") },
+                    { id_ref: "loadLUT",          label: qsTr("载入LUT")  },
+                    { id_ref: "loadMASK",         label: qsTr("载入MASK") },
+                    { id_ref: "applyButton",      label: qsTr("应用滤镜") },
+                    { id_ref: "exportButton",     label: qsTr("导出图片") },
                 ]
 
-                // 使用普通 Button，通过 objectName 区分
                 Button {
                     objectName: modelData.id_ref
                     text: modelData.label
@@ -75,7 +89,6 @@ Item {
                     Layout.preferredHeight: 28
                     font.pixelSize: 11
 
-                    // applyButton 的 enabled 逻辑单独处理（见下方覆盖）
                     enabled: objectName === "applyButton"
                              ? (function() {
                                    for (var i = 0; i < filterModel.count; i++)
@@ -83,19 +96,24 @@ Item {
                                    return false
                                })()
                              : true
+
                     onClicked: {
                         if (objectName === "loadImageButton") {
                             loadButton.clicked()
+                        }
+                        // applyButton：点击后才真正推送滤镜到 OpenGLItem
+                        if (objectName === "applyButton") {
+                            glView.activeFilters = form.buildActiveFilters()
                         }
                     }
                 }
             }
         }
 
-        // 注意：Repeater 不支持 id 别名，保留一个不可见的空 Button 供 alias 绑定
+        // alias 绑定用的隐藏按钮（供 flatstyle.qml 的 button.onClicked 使用）
         Button { id: loadButton; visible: false; text: "" }
 
-        // ── ③ 滤镜区域（标题 + 横向列表，整体高度固定）──────
+        // ── ③ 滤镜区域（标题 + 横向列表）────────────────────
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 3
@@ -123,14 +141,16 @@ Item {
                     onClicked: {
                         for (var i = 0; i < filterModel.count; i++)
                             filterModel.setProperty(i, "enabled", false)
+                        // ← 清除时同步重置 OpenGLItem
+                        glView.activeFilters = []
                     }
                 }
             }
 
-            // 横向滤镜列表（固定高度，内容紧凑）
+            // 横向滤镜列表
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 68   // 固定高度，不占用主区域空间
+                Layout.preferredHeight: 68
                 color: "#1a1a2e"
                 radius: 5
                 border.color: "#333355"
@@ -147,7 +167,7 @@ Item {
                     spacing: 3
 
                     delegate: Rectangle {
-                        width: 62    // 方块宽度缩小
+                        width: 62
                         height: filterList.height
                         radius: 6
                         color: model.enabled
@@ -161,7 +181,6 @@ Item {
                             anchors.margins: 4
                             spacing: 3
 
-                            // 迷你复选框
                             Rectangle {
                                 Layout.alignment: Qt.AlignHCenter
                                 width: 14; height: 14
@@ -180,7 +199,6 @@ Item {
                                 }
                             }
 
-                            // 滤镜名称（两行，字体更小）
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 Layout.fillWidth: true
@@ -199,8 +217,11 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: filterModel.setProperty(
-                                           index, "enabled", !model.enabled)
+                            onClicked: {
+                                filterModel.setProperty(index, "enabled", !model.enabled)
+                                // ← 勾选/取消时不立即生效，等用户点"应用滤镜"
+                                // 如需实时预览，改为：glView.activeFilters = form.buildActiveFilters()
+                            }
                         }
                     }
                 }
