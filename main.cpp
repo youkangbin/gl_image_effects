@@ -1,24 +1,20 @@
-// Copyright (C) 2016 The Qt Company Ltd.
+// Copyright (C) 2017 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
 
 #include <QGuiApplication>
+#include <QQuickWindow>
+#include "window_singlethreaded.h"
 
-#include <QtQuick/QQuickView>
-
-#include "squircle.h"
-
-//! [1]
 int main(int argc, char **argv)
 {
     QGuiApplication app(argc, argv);
 
+    // only functional when Qt Quick is also using OpenGL
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 
-    QQuickView view;
-    view.setResizeMode(QQuickView::SizeRootObjectToView);
-    view.setSource(QUrl("qrc:///scenegraph/openglunderqml/main.qml"));
-    view.show();
+    WindowSingleThreaded window;
+    window.resize(1024, 768);
+    window.show();
 
-    return QGuiApplication::exec();
+    return app.exec();
 }
-//! [1]
