@@ -5,7 +5,18 @@
 
 int main(int argc, char *argv[])
 {
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    QSurfaceFormat fmt;
+    fmt.setRenderableType(QSurfaceFormat::OpenGLES); // 明确使用 GLES
+    fmt.setVersion(3, 2);                            // ES 3.2
+    fmt.setDepthBufferSize(24);
+    fmt.setSamples(4);
+    fmt.setProfile(QSurfaceFormat::CoreProfile);     // ES 核心配置
+    QSurfaceFormat::setDefaultFormat(fmt);
+
+    // ========== 关键修复3：正确设置 QQuickWindow 图形 API ==========
+    // QSGRendererInterface::OpenGLES 而非 OpenGL
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGLES);
+
 
     QApplication app(argc, argv);
 

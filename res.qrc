@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>shader/filter.vert</file>
+        <file>shader/filter.frag</file>
+        <file>images/lenna.png</file>
+    </qresource>
+</RCC>

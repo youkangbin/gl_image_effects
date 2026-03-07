@@ -90,28 +90,8 @@ void OpenGLRenderer::initialize()
     // ── 着色器 ──────────────────────────────────────
     m_program = new QOpenGLShaderProgram();
 
-    // 兼容 OpenGL ES 2.0 / Desktop GL 的 GLSL 写法
-    const char *vertSrc = R"(
-        attribute highp vec4 vertex;
-        attribute highp vec2 coord;
-        varying   highp vec2 v_coord;
-        uniform   highp mat4 matrix;
-        void main() {
-            v_coord     = coord;
-            gl_Position = matrix * vertex;
-        }
-    )";
-
-    const char *fragSrc = R"(
-        varying highp vec2 v_coord;
-        void main() {
-            // 用 UV 坐标生成彩色渐变，方便验证每个面都渲染正确
-            gl_FragColor = vec4(v_coord.x, v_coord.y, 0.6, 1.0);
-        }
-    )";
-
-    m_program->addShaderFromSourceCode(QOpenGLShader::Vertex,   vertSrc);
-    m_program->addShaderFromSourceCode(QOpenGLShader::Fragment, fragSrc);
+    m_program->addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/shader/filter.vert");
+    m_program->addShaderFromSourceCode(QOpenGLShader::Fragment, ":/shader/filter.frag");
     m_program->bindAttributeLocation("vertex", 0);
     m_program->bindAttributeLocation("coord",  1);
     if (!m_program->link()) {

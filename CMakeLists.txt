@@ -14,9 +14,14 @@ set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/quickcontrols/gl_image_effects")
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Widgets OpenGL)
 
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
 qt_add_executable(gl_image_effects WIN32 MACOSX_BUNDLE
     main.cpp
     openglitem.cpp
+    "res.qrc"
 )
 
 qt_add_qml_module(gl_image_effects
