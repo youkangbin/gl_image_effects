@@ -53,9 +53,15 @@ public:
     OpenGLRenderer();
     ~OpenGLRenderer() override;
 
+    void initPointRenderer();
+
+    void renderLandmarks();
+
     void render() override;
     void synchronize(QQuickFramebufferObject *item) override;
     QOpenGLFramebufferObject *createFramebufferObject(const QSize &size) override;
+
+    void uploadLandmarkPoints();
 
 private:
     void initialize();
@@ -66,6 +72,18 @@ private:
     QOpenGLVertexArrayObject *m_vao     = nullptr;
     QOpenGLBuffer            *m_vbo     = nullptr;
     QOpenGLTexture           *m_texture = nullptr;
+
+    QSize                    m_imgSize;
+    // 人脸关键点数据
+    std::vector<FaceData>   m_faceData;
+    bool                    m_faceDataDirty = false;
+
+    // 关键点绘制专用 GL 资源
+    QOpenGLShaderProgram   *m_pointProgram  = nullptr;
+    QOpenGLVertexArrayObject *m_pointVao    = nullptr;
+    QOpenGLBuffer          *m_pointVbo      = nullptr;
+    int                     m_pointColorLoc = -1;
+    int                     m_pointCount    = 0;
     // QOpenGL
 
     // uniform locations

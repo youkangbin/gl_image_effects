@@ -129,11 +129,7 @@ void OpenGLRenderer::loadTexture(const QString &path)
 {
     QString convertedPath;
     QUrl urlPath(path);
-    if (urlPath.isValid()) {
-        convertedPath = urlPath.toLocalFile();
-    } else {
-        convertedPath = path;
-    }
+    convertedPath = urlPath.isValid() ? urlPath.toLocalFile() : path;
 
     delete m_texture;
     m_texture = nullptr;
@@ -148,6 +144,12 @@ void OpenGLRenderer::loadTexture(const QString &path)
         img.setPixel(1, 1, qRgba(255,   0, 255, 255));
     }
 
+    // ── 人脸检测（在 mirrored 之前，用原始坐标系检测）──────────
+    m_faceData = m_faceDetector.detectFaces(img);
+    m_imgSize  = img.size();          // 记录图片尺寸，供坐标映射用
+    m_faceDataDirty = true;
+    qDebug() << "Detected faces:" << m_faceData.size();
+
     // 转为 RGBA8888 并上下翻转（OpenGL 纹理原点在左下）
     img = img.convertToFormat(QImage::Format_RGBA8888).mirrored();
 
@@ -155,7 +157,7 @@ void OpenGLRenderer::loadTexture(const QString &path)
     m_texture->setMinificationFilter(QOpenGLTexture::LinearMipMapLinear);
     m_texture->setMagnificationFilter(QOpenGLTexture::Linear);
     m_texture->setWrapMode(QOpenGLTexture::ClampToEdge);
-    m_texture->setData(img);   // 自动生成 mipmap
+    m_texture->setData(img);
 }
 
 // ── 初始化 GL 资源 ────────────────────────────────────────────
@@ -210,6 +212,8 @@ void OpenGLRenderer::initialize()
         qWarning("face detecotr unable load model!");
     }
 
+    initPointRenderer();
+
     m_initialized = true;
 }
 
@@ -219,12 +223,15 @@ void OpenGLRenderer::render()
     if (!m_initialized)
         initialize();
 
-    // 按需加载 / 更新纹理
     if (m_imgDirty) {
         loadTexture(m_pendingImgPath);
         m_loadedImgPath = m_pendingImgPath;
         m_imgDirty = false;
     }
+
+    // ── 每次图片更新时重新上传关键点 ──
+    if (m_faceDataDirty)
+        uploadLandmarkPoints();
 
     glDisable(GL_DEPTH_TEST);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -232,21 +239,113 @@ void OpenGLRenderer::render()
 
     if (!m_texture) return;
 
+    // ① 绘制图片（含滤镜）
     m_program->bind();
     {
         QOpenGLVertexArrayObject::Binder vaoBinder(m_vao);
-
-        // 绑定纹理到 unit 0
         m_texture->bind(0);
         m_program->setUniformValue(m_textureLoc,    0);
         m_program->setUniformValue(m_filterModeLoc, m_filterMask);
-
         glDrawArrays(GL_TRIANGLES, 0, 6);
-
         m_texture->release();
     }
     m_program->release();
 
-    // 图片处理不需要持续动画，无需 update()
-    // 如需实时预览动态效果可在此调用 update()
+    // ② 叠加绘制关键点
+    renderLandmarks();
+}
+
+void OpenGLRenderer::renderLandmarks()
+{
+    if (m_pointCount <= 0 || !m_pointProgram) return;
+
+    glEnable(GL_PROGRAM_POINT_SIZE);   // 让 gl_PointSize 生效
+
+    m_pointProgram->bind();
+    m_pointProgram->setUniformValue(m_pointColorLoc,
+                                    QColor(0, 255, 0, 230)); // 亮绿色
+
+    QOpenGLVertexArrayObject::Binder vaoBinder(m_pointVao);
+    glDrawArrays(GL_POINTS, 0, m_pointCount);
+
+    m_pointProgram->release();
+    glDisable(GL_PROGRAM_POINT_SIZE);
+}
+
+void OpenGLRenderer::uploadLandmarkPoints()
+{
+    if (!m_faceDataDirty || m_faceData.empty()) {
+        m_pointCount = 0;
+        m_faceDataDirty = false;
+        return;
+    }
+
+    std::vector<float> pts;
+    const float W = static_cast<float>(m_imgSize.width());
+    const float H = static_cast<float>(m_imgSize.height());
+
+    for (const FaceData &fd : m_faceData) {
+        if (!fd.hasShape) continue;
+        for (unsigned long i = 0; i < fd.shape.num_parts(); ++i) {
+            auto &p = fd.shape.part(i);
+            // dlib 坐标：(0,0) 在左上，y 向下
+            // OpenGL NDC：(0,0) 在中心，y 向上
+            // 注意：纹理已经 mirrored，所以 y 轴需要翻转
+            float nx =  (static_cast<float>(p.x()) / W) * 2.0f - 1.0f;
+            float ny = -(static_cast<float>(p.y()) / H) * 2.0f + 1.0f; // 翻转 y
+            pts.push_back(nx);
+            pts.push_back(ny);
+        }
+    }
+
+    m_pointCount = static_cast<int>(pts.size() / 2);
+
+    QOpenGLVertexArrayObject::Binder vaoBinder(m_pointVao);
+    m_pointVbo->bind();
+    m_pointVbo->allocate(pts.data(), static_cast<int>(pts.size() * sizeof(float)));
+
+    m_pointProgram->bind();
+    m_pointProgram->enableAttributeArray(0);
+    m_pointProgram->setAttributeBuffer(0, GL_FLOAT, 0, 2, 2 * sizeof(float));
+    m_pointProgram->release();
+    m_pointVbo->release();
+
+    m_faceDataDirty = false;
+}
+
+void OpenGLRenderer::initPointRenderer()
+{
+    // 极简顶点着色器：直接接受 NDC 坐标
+    const char *vertSrc = R"(
+    layout(location = 0) in vec2 a_pos;
+    void main() {
+        gl_Position  = vec4(a_pos, 0.0, 1.0);
+        gl_PointSize = 20.0;          // 关键点圆点大小（像素）
+    }
+    )";
+
+    const char *fragSrc = R"(
+    uniform vec4 u_color;
+    out vec4 fragColor;
+    void main() {
+        // 画圆点（丢弃圆外像素）
+        vec2 c = gl_PointCoord - vec2(0.5);
+        if (dot(c, c) > 0.25) discard;
+        fragColor = u_color;
+    }
+    )";
+
+    m_pointProgram = new QOpenGLShaderProgram();
+    m_pointProgram->addShaderFromSourceCode(QOpenGLShader::Vertex,   vertSrc);
+    m_pointProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fragSrc);
+    m_pointProgram->bindAttributeLocation("a_pos", 0);
+    m_pointProgram->link();
+    m_pointColorLoc = m_pointProgram->uniformLocation("u_color");
+
+    m_pointVao = new QOpenGLVertexArrayObject();
+    m_pointVao->create();
+
+    m_pointVbo = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+    m_pointVbo->create();
+    m_pointVbo->setUsagePattern(QOpenGLBuffer::DynamicDraw); // 每帧可更新
 }
