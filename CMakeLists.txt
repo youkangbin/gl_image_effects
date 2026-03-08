@@ -14,7 +14,7 @@ set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/quickcontrols/gl_image_effects")
 
 add_subdirectory("third_party/dlib")
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Widgets OpenGL)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Widgets OpenGL Multimedia)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -23,6 +23,8 @@ set(CMAKE_AUTOUIC ON)
 qt_add_executable(gl_image_effects WIN32 MACOSX_BUNDLE
     main.cpp
     openglitem.cpp
+    facedetector.h
+    facedetector.cpp
     "res.qrc"
 )
 
@@ -49,6 +51,7 @@ target_link_libraries(gl_image_effects PUBLIC
     Qt6::QuickControls2
     Qt6::Widgets
     Qt6::OpenGL
+    Qt6::Multimedia
     dlib::dlib
 )
 

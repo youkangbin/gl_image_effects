@@ -61,7 +61,7 @@ Item {
             OpenGLItem {
                 id: glView
                 anchors.fill: parent
-                imagePath: ":/images/lenna.png"
+                imagePath: ":/images/india_girl.jpg"
             }
 
             Text {

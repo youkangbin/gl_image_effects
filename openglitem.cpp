@@ -3,6 +3,7 @@
 #include <QOpenGLContext>
 #include <QFile>
 #include <QImage>
+#include <QDebug>
 
 // ════════════════════════════════════════════════════════════════
 // 全屏四边形顶点（两个三角形覆盖整个 NDC [-1,1]）
@@ -134,14 +135,12 @@ void OpenGLRenderer::loadTexture(const QString &path)
         convertedPath = path;
     }
 
-
     delete m_texture;
     m_texture = nullptr;
 
     QImage img(convertedPath);
     if (img.isNull()) {
         qWarning() << "Failed to load image:" << convertedPath;
-        // 生成一个 2×2 的棋盘格作为 fallback
         img = QImage(2, 2, QImage::Format_RGBA8888);
         img.setPixel(0, 0, qRgba(255,   0, 255, 255));
         img.setPixel(1, 0, qRgba( 64,  64,  64, 255));
@@ -204,6 +203,12 @@ void OpenGLRenderer::initialize()
     m_program->setAttributeBuffer(1, GL_FLOAT, 2 * sizeof(GLfloat),2, 4 * sizeof(GLfloat));
     m_program->release();
     m_vbo->release();
+
+
+    auto ret = m_faceDetector.loadLandmarkModelFromFile(":/models/shape_predictor_81_face_landmarks.dat");
+    if (ret != true) {
+        qWarning("face detecotr unable load model!");
+    }
 
     m_initialized = true;
 }

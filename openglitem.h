@@ -10,6 +10,8 @@
 #include <QMatrix4x4>
 #include <QStringList>
 
+#include "facedetector.h"
+
 class OpenGLRenderer;
 
 // ─────────────────────────────────────────────────────────────────
@@ -85,11 +87,13 @@ private:
         FILTER_MASK      = 1 << 9
     };
 
+
     int     m_filterMask     = FILTER_NONE;
     QString m_pendingImgPath = QStringLiteral(":/images/lenna.png");
     QString m_loadedImgPath;
     bool    m_initialized    = false;
     bool    m_imgDirty       = true;   // 首次强制加载
+    FaceDetector m_faceDetector;
 };
 
 #endif // OPENGLITEM_H
