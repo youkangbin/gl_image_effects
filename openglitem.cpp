@@ -167,8 +167,8 @@ void OpenGLRenderer::initialize()
     // ── 着色器 ──
     m_program = new QOpenGLShaderProgram();
 
-    QByteArray vertSrc = buildShaderSource(":/shader/filter.vert");
-    QByteArray fragSrc = buildShaderSource(":/shader/filter.frag");
+    QByteArray vertSrc = buildShaderSource(":/shaders/filter.vert");
+    QByteArray fragSrc = buildShaderSource(":/shaders/filter.frag");
 
     if (!m_program->addShaderFromSourceCode(QOpenGLShader::Vertex,   vertSrc) ||
         !m_program->addShaderFromSourceCode(QOpenGLShader::Fragment, fragSrc)) {

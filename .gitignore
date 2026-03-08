@@ -44,3 +44,5 @@ build-*
 build
 
 CMakeLists.txt.user
+
+ignore-*

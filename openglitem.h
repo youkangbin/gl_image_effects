@@ -64,6 +64,7 @@ private:
     QOpenGLVertexArrayObject *m_vao     = nullptr;
     QOpenGLBuffer            *m_vbo     = nullptr;
     QOpenGLTexture           *m_texture = nullptr;
+    // QOpenGL
 
     // uniform locations
     int m_textureLoc    = -1;

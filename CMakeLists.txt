@@ -12,6 +12,8 @@ endif()
 
 set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/quickcontrols/gl_image_effects")
 
+add_subdirectory("third_party/dlib")
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Widgets OpenGL)
 
 set(CMAKE_AUTOMOC ON)
@@ -47,6 +49,7 @@ target_link_libraries(gl_image_effects PUBLIC
     Qt6::QuickControls2
     Qt6::Widgets
     Qt6::OpenGL
+    dlib::dlib
 )
 
 install(TARGETS gl_image_effects
